@@ -54,7 +54,7 @@ ROOT_URLCONF = 'waifuweb.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [os.path.join(BASE_DIR, 'waifuvid/templates'),],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [

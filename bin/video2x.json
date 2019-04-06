@@ -72,7 +72,7 @@
         "extra_arguments": []
     },
     "video2x": {
-        "video2x_cache_folder": null,
+        "video2x_cache_folder": "F:\\video2x",
         "image_format": "png",
         "preserve_frames": false
     }

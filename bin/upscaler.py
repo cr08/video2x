@@ -52,7 +52,7 @@ class Upscaler:
         self.scale_ratio = None
         self.model_dir = None
         self.threads = 5
-        self.video2x_cache_folder = '{}\\video2x'.format(tempfile.gettempdir())
+        self.video2x_cache_folder = 'F:\\video2x'
         self.image_format = 'png'
         self.preserve_frames = False
 

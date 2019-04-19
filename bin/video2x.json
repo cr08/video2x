@@ -12,7 +12,7 @@
         "crop_size": 36,
         "output_quality": -1,
         "output_depth": 16,
-        "batch_size": 4,
+        "batch_size": 3,
         "gpu": 0,
         "tta": 0,
         "input_path": null,

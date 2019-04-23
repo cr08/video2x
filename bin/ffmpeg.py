@@ -80,6 +80,8 @@ class Ffmpeg:
             self.ffmpeg_binary,
             '-i',
             input_video,
+			'-r',
+			'25',
             f'{extracted_frames}\\extracted_%0d.{self.image_format}'
         ]
         self._execute(execute=execute, phase='video_to_frames')

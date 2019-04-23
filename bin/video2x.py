@@ -262,7 +262,7 @@ preserve_frames = config['video2x']['preserve_frames']
 
 # create temp directories if they don't exist
 if not video2x_cache_folder:
-    video2x_cache_folder = 'F:\\video2x'
+    video2x_cache_folder = '{}\\video2x'.format(tempfile.gettempdir())
 
 if video2x_cache_folder and not os.path.isdir(video2x_cache_folder):
     if not os.path.isfile(video2x_cache_folder) and not os.path.islink(video2x_cache_folder):

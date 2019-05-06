@@ -63,10 +63,11 @@
         },
         "migrating_tracks": {
             "-map": "0:v:0",
-			"-map": "1",
+			      "-map": "1",
             "-c": "copy",
-			"-map": "-1:v",
+			      "-map": "-1:v",
             "-r": 25,
+            "-pix_fmt": "yuv420p",
             "-hwaccel": "auto",
             "-y": true
         },
@@ -74,7 +75,7 @@
         "extra_arguments": []
     },
     "video2x": {
-        "video2x_cache_folder": null,
+        "video2x_cache_directory": null,
         "image_format": "png",
         "preserve_frames": false
     }

@@ -86,7 +86,7 @@ class Ffmpeg:
         ]
         self._execute(execute=execute, phase='video_to_frames')
 
-    def convert_video(self, framerate, resolution, upscaled_frames):
+    def convert_video(self, resolution, upscaled_frames):
         """Converts images into videos
 
         This method converts a set of images into a
@@ -100,9 +100,11 @@ class Ffmpeg:
         execute = [
             self.ffmpeg_binary,
             '-r',
-            str(framerate),
+            '25',
             '-s',
             resolution,
+			'-pix_fmt',
+			'yuv420p',
             '-i',
             f'{upscaled_frames}\\extracted_%d.{self.image_format}',
             f'{upscaled_frames}\\no_audio.mp4'
@@ -123,6 +125,8 @@ class Ffmpeg:
             f'{upscaled_frames}\\no_audio.mp4',
             '-i',
             input_video,
+			'-pix_fmt',
+			'yuv420p',
             output_video
         ]
         self._execute(execute=execute, phase='migrating_tracks')

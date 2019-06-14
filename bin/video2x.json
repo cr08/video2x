@@ -42,6 +42,9 @@
   "ffmpeg": {
     "ffmpeg_path": "C:\\Users\\cr08\\AppData\\Local\\video2x\\ffmpeg-latest-win64-static\\bin",
     "video_to_frames": {
+		"input_options":{
+			"-r": 25
+		},
         "output_options":{
             "-qscale:v": null
         },

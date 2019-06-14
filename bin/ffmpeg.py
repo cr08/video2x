@@ -85,6 +85,8 @@ class Ffmpeg:
             input_video
         ])
 
+        execute.extend(self._read_configuration(phase='video_to_frames', section='input_options'))
+
         execute.extend(self._read_configuration(phase='video_to_frames', section='output_options'))
 
         execute.extend([

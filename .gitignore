@@ -113,3 +113,4 @@ venv.bak/
 .mypy_cache/
 bin/S01S02.cmd
 test-out.mkv
+bin/test_out.mkv

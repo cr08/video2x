@@ -4,7 +4,7 @@
 Name: FFMPEG Class
 Author: K4YT3X
 Date Created: Feb 24, 2018
-Last Modified: May 4, 2019
+Last Modified: June 5, 2019
 
 Description: This class handles all FFMPEG related
 operations.
@@ -80,15 +80,18 @@ class Ffmpeg:
             self.ffmpeg_binary
         ]
 
-        execute.extend(self._read_configuration(phase='video_to_frames'))
-
         execute.extend([
             '-i',
-            input_video,
-			'-r',
-			'25',
+            input_video
+        ])
+
+        execute.extend(self._read_configuration(phase='video_to_frames', section='output_options'))
+
+        execute.extend([
             f'{extracted_frames}\\extracted_%0d.{self.image_format}'
         ])
+
+        execute.extend(self._read_configuration(phase='video_to_frames'))
 
         self._execute(execute)
 
@@ -149,7 +152,7 @@ class Ffmpeg:
             input_video
         ]
 
-        execute.extend(self._read_configuration(phase='frames_to_video', section='output_options'))
+        execute.extend(self._read_configuration(phase='migrating_tracks', section='output_options'))
 
         execute.extend([
             output_video

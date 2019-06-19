@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# -*- coding: future_fstrings -*-
+# -*- coding: utf-8 -*-
 """
 
 __      __  _       _                  ___   __   __

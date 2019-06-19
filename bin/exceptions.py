@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# -*- coding: future_fstrings -*-
+# -*- code:utf-8 -*-
 """
 Name: Video2X Exceptions
 Dev: K4YT3X

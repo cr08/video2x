@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
+
 """
 Name: Video2X Setup Script
 Author: K4YT3X
+Author: BrianPetkovsek
 Date Created: November 28, 2018
-Last Modified: April 28, 2019
+Last Modified: June 15, 2019
 
 Licensed under the GNU General Public License Version 3 (GNU GPL v3),
     available at: https://www.gnu.org/licenses/gpl-3.0.txt
@@ -86,17 +89,14 @@ class Video2xSetup:
     def _install_python_requirements(self):
         """ Read requirements.txt and return its content
         """
-        with open('requirements.txt', 'r') as req:
-            for line in req:
-                package = line.split('==')[0]
-                pip_install(package)
+        pip_install('requirements.txt')
 
     def _cleanup(self):
         """ Cleanup all the temp files downloaded
         """
         for file in self.trash:
             try:
-                print(f'Deleting: {file}')
+                print('Deleting: {}'.format(file))
                 os.remove(file)
             except FileNotFoundError:
                 pass
@@ -110,7 +110,7 @@ class Video2xSetup:
         self.trash.append(ffmpeg_zip)
 
         with zipfile.ZipFile(ffmpeg_zip) as zipf:
-            zipf.extractall(f'{os.getenv("localappdata")}\\video2x')
+            zipf.extractall(os.path.join(os.getenv('localappdata'), 'video2x'))
 
     def _install_waifu2x_caffe(self):
         """ Install waifu2x_caffe
@@ -119,7 +119,7 @@ class Video2xSetup:
         import requests
 
         # Get latest release of waifu2x-caffe via GitHub API
-        latest_release = json.loads(requests.get('https://api.github.com/repos/lltcggie/waifu2x-caffe/releases/latest').content)
+        latest_release = json.loads(requests.get('https://api.github.com/repos/lltcggie/waifu2x-caffe/releases/latest').content.decode('utf-8'))
 
         for a in latest_release['assets']:
             if 'waifu2x-caffe.zip' in a['browser_download_url']:
@@ -127,7 +127,7 @@ class Video2xSetup:
                 self.trash.append(waifu2x_caffe_zip)
 
         with zipfile.ZipFile(waifu2x_caffe_zip) as zipf:
-            zipf.extractall(f'{os.getenv("localappdata")}\\video2x')
+            zipf.extractall(os.path.join(os.getenv('localappdata'), 'video2x'))
 
     def _install_waifu2x_converter_cpp(self):
         """ Install waifu2x_caffe
@@ -137,7 +137,7 @@ class Video2xSetup:
         import requests
 
         # Get latest release of waifu2x-caffe via GitHub API
-        latest_release = json.loads(requests.get('https://api.github.com/repos/DeadSix27/waifu2x-converter-cpp/releases/latest').content)
+        latest_release = json.loads(requests.get('https://api.github.com/repos/DeadSix27/waifu2x-converter-cpp/releases/latest').content.decode('utf-8'))
 
         for a in latest_release['assets']:
             if re.search(r'waifu2x-DeadSix27-win64_v[0-9]*\.zip', a['browser_download_url']):
@@ -145,7 +145,7 @@ class Video2xSetup:
                 self.trash.append(waifu2x_converter_cpp_zip)
 
         with zipfile.ZipFile(waifu2x_converter_cpp_zip) as zipf:
-            zipf.extractall(f'{os.getenv("localappdata")}\\video2x\\waifu2x-converter-cpp')
+            zipf.extractall(os.path.join(os.getenv('localappdata'), 'video2x', 'waifu2x-converter-cpp'))
 
     def _generate_config(self):
         """ Generate video2x config
@@ -159,14 +159,14 @@ class Video2xSetup:
 
         # configure only the specified drivers
         if self.driver == 'all':
-            template_dict['waifu2x_caffe']['waifu2x_caffe_path'] = f'{local_app_data}\\video2x\\waifu2x-caffe\\waifu2x-caffe-cui.exe'
-            template_dict['waifu2x_converter']['waifu2x_converter_path'] = f'{local_app_data}\\video2x\\waifu2x-converter-cpp'
+            template_dict['waifu2x_caffe']['waifu2x_caffe_path'] = os.path.join(local_app_data, 'video2x', 'waifu2x-caffe', 'waifu2x-caffe-cui.exe')
+            template_dict['waifu2x_converter']['waifu2x_converter_path'] = os.path.join(local_app_data, 'video2x', 'waifu2x-converter-cpp')
         elif self.driver == 'waifu2x_caffe':
-            template_dict['waifu2x_caffe']['waifu2x_caffe_path'] = f'{local_app_data}\\video2x\\waifu2x-caffe\\waifu2x-caffe-cui.exe'
+            template_dict['waifu2x_caffe']['waifu2x_caffe_path'] = os.path.join(local_app_data, 'video2x', 'waifu2x-caffe', 'waifu2x-caffe-cui.exe')
         elif self.driver == 'waifu2x_converter':
-            template_dict['waifu2x_converter']['waifu2x_converter_path'] = f'{local_app_data}\\video2x\\waifu2x-converter-cpp'
+            template_dict['waifu2x_converter']['waifu2x_converter_path'] = os.path.join(local_app_data, 'video2x', 'waifu2x-converter-cpp')
 
-        template_dict['ffmpeg']['ffmpeg_path'] = f'{local_app_data}\\video2x\\ffmpeg-latest-win64-static\\bin'
+        template_dict['ffmpeg']['ffmpeg_path'] = os.path.join(local_app_data, 'video2x', 'ffmpeg-latest-win64-static', 'bin')
         template_dict['video2x']['video2x_cache_directory'] = None
         template_dict['video2x']['preserve_frames'] = False
 
@@ -182,10 +182,10 @@ def download(url, save_path, chunk_size=4096):
     from tqdm import tqdm
     import requests
 
-    output_file = f'{save_path}\\{url.split("/")[-1]}'
-    print(f'Downloading: {url}')
-    print(f'Chunk size: {chunk_size}')
-    print(f'Saving to: {output_file}')
+    output_file = os.path.join(save_path, url.split('/')[-1])
+    print('Downloading: {}'.format(url))
+    print('Chunk size: {}'.format(chunk_size))
+    print('Saving to: {}'.format(output_file))
 
     stream = requests.get(url, stream=True)
     total_size = int(stream.headers['content-length'])
@@ -201,20 +201,20 @@ def download(url, save_path, chunk_size=4096):
     return output_file
 
 
-def pip_install(package):
+def pip_install(file):
     """ Install python package via python pip module
 
     pip.main() is not available after pip 9.0.1, thus
     pip module is not used in this case.
     """
-    return subprocess.run(['python', '-m', 'pip', 'install', '-U', package]).returncode
+    return subprocess.run([sys.executable, '-m', 'pip', 'install', '-U', '-r', file]).returncode
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     try:
         args = process_arguments()
         print('Video2X Setup Script')
-        print(f'Version: {VERSION}')
+        print('Version: {}'.format(VERSION))
 
         # do not install pip modules if script
         # is packaged in exe format

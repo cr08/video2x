@@ -1,24 +1,28 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Name: FFMPEG Class
+Name: Video2X FFmpeg Controller
 Author: K4YT3X
 Date Created: Feb 24, 2018
-Last Modified: June 15, 2019
+Last Modified: July 27, 2019
 
-Description: This class handles all FFMPEG related
-operations.
+Description: This class handles all FFmpeg related operations.
 """
-from avalon_framework import Avalon
+
+# built-in imports
 import json
-import subprocess
 import os
+import pathlib
+import subprocess
+
+# third-party imports
+from avalon_framework import Avalon
 
 
 class Ffmpeg:
-    """This class communicates with ffmpeg
+    """This class communicates with FFmpeg
 
-    This class deals with ffmpeg. It handles extracitng
+    This class deals with FFmpeg. It handles extracting
     frames, stripping audio, converting images into videos
     and inserting audio tracks to videos.
     """
@@ -26,17 +30,53 @@ class Ffmpeg:
     def __init__(self, ffmpeg_settings, image_format):
         self.ffmpeg_settings = ffmpeg_settings
 
-        self.ffmpeg_path = self.ffmpeg_settings['ffmpeg_path']
-
-        self.ffmpeg_binary = os.path.join(self.ffmpeg_path, 'ffmpeg.exe')
-        self.ffmpeg_probe_binary = os.path.join(self.ffmpeg_path, 'ffprobe.exe')
+        self.ffmpeg_path = pathlib.Path(self.ffmpeg_settings['ffmpeg_path'])
+        self.ffmpeg_binary = self.ffmpeg_path / 'ffmpeg.exe'
+        self.ffmpeg_probe_binary = self.ffmpeg_path / 'ffprobe.exe'
         self.image_format = image_format
+        self.pixel_format = None
+
+    def get_pixel_formats(self):
+        """ Get a dictionary of supported pixel formats
+
+        List all supported pixel formats and their
+        corresponding bit depth.
+
+        Returns:
+            dictionary -- JSON dict of all pixel formats to bit depth
+        """
+        execute = [
+            self.ffmpeg_probe_binary,
+            '-v',
+            'quiet',
+            '-pix_fmts'
+        ]
+
+        # turn elements into str
+        execute = [str(e) for e in execute]
+
+        Avalon.debug_info(f'Executing: {" ".join(execute)}')
+
+        # initialize dictionary to store pixel formats
+        pixel_formats = {}
+
+        # record all pixel formats into dictionary
+        for line in subprocess.run(execute, check=True, stdout=subprocess.PIPE).stdout.decode().split('\n'):
+            try:
+                pixel_formats[' '.join(line.split()).split()[1]] = int(' '.join(line.split()).split()[3])
+            except (IndexError, ValueError):
+                pass
+
+        # print pixel formats for debugging
+        Avalon.debug_info(pixel_formats)
+
+        return pixel_formats
 
     def get_video_info(self, input_video):
         """ Gets input video information
 
         This method reads input video information
-        using ffprobe in dictionary.
+        using ffprobe in dictionary
 
         Arguments:
             input_video {string} -- input video file path
@@ -59,6 +99,9 @@ class Ffmpeg:
             input_video
         ]
 
+        # turn elements into str
+        execute = [str(e) for e in execute]
+
         Avalon.debug_info(f'Executing: {" ".join(execute)}')
         json_str = subprocess.run(execute, check=True, stdout=subprocess.PIPE).stdout
         return json.loads(json_str.decode('utf-8'))
@@ -66,8 +109,7 @@ class Ffmpeg:
     def extract_frames(self, input_video, extracted_frames):
         """Extract every frame from original videos
 
-        This method extracts every frame from videoin
-        using ffmpeg
+        This method extracts every frame from input video using FFmpeg
 
         Arguments:
             input_video {string} -- input video path
@@ -87,7 +129,7 @@ class Ffmpeg:
         execute.extend(self._read_configuration(phase='video_to_frames', section='output_options'))
 
         execute.extend([
-            os.path.join(extracted_frames, f'extracted_%0d.{self.image_format}')
+            extracted_frames / f'extracted_%0d.{self.image_format}'
         ])
 
         execute.extend(self._read_configuration(phase='video_to_frames'))
@@ -97,8 +139,7 @@ class Ffmpeg:
     def convert_video(self, resolution, upscaled_frames):
         """Converts images into videos
 
-        This method converts a set of images into a
-        video.
+        This method converts a set of images into a video
 
         Arguments:
             framerate {float} -- target video framerate
@@ -116,10 +157,20 @@ class Ffmpeg:
         # read FFmpeg input options
         execute.extend(self._read_configuration(phase='frames_to_video', section='input_options'))
 
+        # WORKAROUND FOR WAIFU2X-NCNN-VULKAN
+        # Dev: SAT3LL
+        # rename all .png.png suffixes to .png
+        import re
+        import shutil
+        regex = re.compile(r'\.png\.png$')
+        for frame_name in upscaled_frames.iterdir():
+            (upscaled_frames / frame_name).rename(upscaled_frames / regex.sub('.png', str(frame_name)))
+        # END WORKAROUND
+
         # append input frames path into command
         execute.extend([
             '-i',
-            os.path.join(upscaled_frames, f'extracted_%d.{self.image_format}')
+            upscaled_frames / f'extracted_%d.{self.image_format}'
         ])
 
         # read FFmpeg output options
@@ -130,7 +181,7 @@ class Ffmpeg:
 
         # specify output file location
         execute.extend([
-            os.path.join(upscaled_frames, 'no_audio.mp4')
+            upscaled_frames / 'no_audio.mp4'
         ])
 
         self._execute(execute)
@@ -146,7 +197,7 @@ class Ffmpeg:
         execute = [
             self.ffmpeg_binary,
             '-i',
-            os.path.join(upscaled_frames, 'no_audio.mp4'),
+            upscaled_frames / 'no_audio.mp4',
             '-i',
             input_video
         ]
@@ -179,6 +230,13 @@ class Ffmpeg:
         # from only that section
         if section:
             source = self.ffmpeg_settings[phase][section].keys()
+
+            # if pixel format is not specified, use the source pixel format
+            try:
+                if self.ffmpeg_settings[phase][section].get('-pix_fmt') is None:
+                    self.ffmpeg_settings[phase][section]['-pix_fmt'] = self.pixel_format
+            except KeyError:
+                pass
         else:
             source = self.ffmpeg_settings[phase].keys()
 
@@ -190,8 +248,18 @@ class Ffmpeg:
                 value = self.ffmpeg_settings[phase][key]
 
             # null or None means that leave this option out (keep default)
-            if value is None or value is False or isinstance(value, list) or isinstance(value, dict):
+            if value is None or value is False or isinstance(value, dict):
                 continue
+
+            # if the value is a list, append the same argument and all values
+            elif isinstance(value, list):
+
+                for subvalue in value:
+                    configuration.append(key)
+                    if value is not True:
+                        configuration.append(str(subvalue))
+
+            # otherwise the value is typical
             else:
                 configuration.append(key)
 
@@ -213,4 +281,8 @@ class Ffmpeg:
             int -- execution return code
         """
         Avalon.debug_info(f'Executing: {execute}')
+
+        # turn all list elements into string to avoid errors
+        execute = [str(e) for e in execute]
+
         return subprocess.run(execute, shell=True, check=True).returncode

@@ -54,9 +54,12 @@
   "ffmpeg": {
     "ffmpeg_path": "C:\\Users\\cr08\\AppData\\Local\\video2x\\ffmpeg-latest-win64-static\\bin",
     "video_to_frames": {
+	  "input_options": {
+	    "-r" :25
+      },
       "output_options": {
         "-qscale:v": null,
-        "-pix_fmt": "rgba64be"
+        "-pix_fmt": null
       },
       "-hwaccel": "auto",
       "-y": true
@@ -65,11 +68,14 @@
       "input_options": {
         "-qscale:v": null,
         "-qscale:a": null,
+		"-r": 25,
         "-f": "image2"
       },
       "output_options": {
         "-vcodec": "libx264",
-        "-crf": 17,
+        "-crf": 19,
+		"-preset": "veryslow",
+		"-tune": "animation",
         "-b:v": null,
         "-pix_fmt": null
       },
@@ -82,6 +88,7 @@
           "1?",
           "-1:v?"
         ],
+		"-r": 25,
         "-c": "copy",
         "-pix_fmt": null
       },

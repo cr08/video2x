@@ -4,14 +4,13 @@
 Name: Video2X FFmpeg Controller
 Author: K4YT3X
 Date Created: Feb 24, 2018
-Last Modified: July 27, 2019
+Last Modified: August 15, 2019
 
 Description: This class handles all FFmpeg related operations.
 """
 
 # built-in imports
 import json
-import os
 import pathlib
 import subprocess
 
@@ -119,6 +118,8 @@ class Ffmpeg:
             self.ffmpeg_binary
         ]
 
+        execute.extend(self._read_configuration(phase='video_to_frames'))
+
         execute.extend([
             '-i',
             input_video
@@ -131,8 +132,6 @@ class Ffmpeg:
         execute.extend([
             extracted_frames / f'extracted_%0d.{self.image_format}'
         ])
-
-        execute.extend(self._read_configuration(phase='video_to_frames'))
 
         self._execute(execute)
 
@@ -154,6 +153,9 @@ class Ffmpeg:
             resolution
         ]
 
+        # read other options
+        execute.extend(self._read_configuration(phase='frames_to_video'))
+
         # read FFmpeg input options
         execute.extend(self._read_configuration(phase='frames_to_video', section='input_options'))
 
@@ -161,8 +163,7 @@ class Ffmpeg:
         # Dev: SAT3LL
         # rename all .png.png suffixes to .png
         import re
-        import shutil
-        regex = re.compile(r'\.png\.png$')
+        regex = re.compile(r'\.png\.png$', re.IGNORECASE)
         for frame_name in upscaled_frames.iterdir():
             (upscaled_frames / frame_name).rename(upscaled_frames / regex.sub('.png', str(frame_name)))
         # END WORKAROUND
@@ -175,9 +176,6 @@ class Ffmpeg:
 
         # read FFmpeg output options
         execute.extend(self._read_configuration(phase='frames_to_video', section='output_options'))
-
-        # read other options
-        execute.extend(self._read_configuration(phase='frames_to_video'))
 
         # specify output file location
         execute.extend([
@@ -195,20 +193,23 @@ class Ffmpeg:
             upscaled_frames {string} -- directory containing upscaled frames
         """
         execute = [
-            self.ffmpeg_binary,
+            self.ffmpeg_binary
+        ]
+
+        execute.extend(self._read_configuration(phase='migrating_tracks'))
+
+        execute.extend([
             '-i',
             upscaled_frames / 'no_audio.mp4',
             '-i',
             input_video
-        ]
+        ])
 
         execute.extend(self._read_configuration(phase='migrating_tracks', section='output_options'))
 
         execute.extend([
             output_video
         ])
-
-        execute.extend(self._read_configuration(phase='migrating_tracks'))
 
         self._execute(execute)
 
@@ -280,9 +281,9 @@ class Ffmpeg:
         Returns:
             int -- execution return code
         """
-        Avalon.debug_info(f'Executing: {execute}')
-
         # turn all list elements into string to avoid errors
         execute = [str(e) for e in execute]
+
+        Avalon.debug_info(f'Executing: {execute}')
 
         return subprocess.run(execute, shell=True, check=True).returncode

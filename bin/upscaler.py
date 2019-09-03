@@ -4,7 +4,7 @@
 Name: Video2X Upscaler
 Author: K4YT3X
 Date Created: December 10, 2018
-Last Modified: July 27, 2019
+Last Modified: August 21, 2019
 
 Dev: SAT3LL
 
@@ -15,6 +15,7 @@ Licensed under the GNU General Public License Version 3 (GNU GPL v3),
 """
 
 # local imports
+from anime4k import Anime4k
 from exceptions import *
 from ffmpeg import Ffmpeg
 from image_cleaner import ImageCleaner
@@ -24,6 +25,7 @@ from waifu2x_ncnn_vulkan import Waifu2xNcnnVulkan
 
 # built-in imports
 from fractions import Fraction
+import contextlib
 import copy
 import pathlib
 import re
@@ -36,6 +38,8 @@ import traceback
 # third-party imports
 from avalon_framework import Avalon
 from tqdm import tqdm
+
+AVAILABLE_DRIVERS = ['waifu2x_caffe', 'waifu2x_converter', 'waifu2x_ncnn_vulkan', 'anime4k']
 
 
 class Upscaler:
@@ -108,12 +112,13 @@ class Upscaler:
         and the output directory. This is originally
         suggested by @ArmandBernard.
         """
-        # get number of extracted frames
-        total_frames = 0
-        for directory in extracted_frames_directories:
-            total_frames += len([f for f in directory.iterdir() if str(f)[-4:] == f'.{self.image_format}'])
 
-        with tqdm(total=total_frames, ascii=True, desc='Upscaling Progress') as progress_bar:
+        # get number of extracted frames
+        self.total_frames = 0
+        for directory in extracted_frames_directories:
+            self.total_frames += len([f for f in directory.iterdir() if str(f)[-4:] == f'.{self.image_format}'])
+
+        with tqdm(total=self.total_frames, ascii=True, desc='Upscaling Progress') as progress_bar:
 
             # tqdm update method adds the value to the progress
             # bar instead of setting the value. Therefore, a delta
@@ -121,19 +126,17 @@ class Upscaler:
             previous_cycle_frames = 0
             while not self.progress_bar_exit_signal:
 
-                try:
-                    total_frames_upscaled = len([f for f in self.upscaled_frames.iterdir() if str(f)[-4:] == f'.{self.image_format}'])
-                    delta = total_frames_upscaled - previous_cycle_frames
-                    previous_cycle_frames = total_frames_upscaled
+                with contextlib.suppress(FileNotFoundError):
+                    self.total_frames_upscaled = len([f for f in self.upscaled_frames.iterdir() if str(f)[-4:] == f'.{self.image_format}'])
+                    delta = self.total_frames_upscaled - previous_cycle_frames
+                    previous_cycle_frames = self.total_frames_upscaled
 
                     # if upscaling is finished
-                    if total_frames_upscaled >= total_frames:
+                    if self.total_frames_upscaled >= self.total_frames:
                         return
 
-                    # adds the detla into the progress bar
+                    # adds the delta into the progress bar
                     progress_bar.update(delta)
-                except FileNotFoundError:
-                    pass
 
                 time.sleep(1)
 
@@ -155,7 +158,7 @@ class Upscaler:
         self.upscaler_exceptions = []
 
         # initialize waifu2x driver
-        drivers = ['waifu2x_caffe', 'waifu2x_converter', 'waifu2x_ncnn_vulkan']
+        drivers = AVAILABLE_DRIVERS
         if self.waifu2x_driver not in drivers:
             raise UnrecognizedDriverError(f'Unrecognized waifu2x driver: {self.waifu2x_driver}')
 
@@ -169,12 +172,14 @@ class Upscaler:
 
             w2.upscale(self.extracted_frames, self.upscaled_frames, self.scale_ratio, self.threads, self.image_format, self.upscaler_exceptions)
             for image in [f for f in self.upscaled_frames.iterdir() if f.is_file()]:
-                renamed = re.sub(f'_\[.*-.*\]\[x(\d+(\.\d+)?)\]\.{self.image_format}', f'.{self.image_format}', image)
+                renamed = re.sub(f'_\[.*-.*\]\[x(\d+(\.\d+)?)\]\.{self.image_format}', f'.{self.image_format}', str(image))
                 (self.upscaled_frames / image).rename(self.upscaled_frames / renamed)
 
             self.progress_bar_exit_signal = True
             progress_bar.join()
             return
+
+        # drivers that are to be multi-threaded by video2x
         else:
             # create a container for all upscaler threads
             upscaler_threads = []
@@ -240,6 +245,15 @@ class Upscaler:
                 # if the driver being used is waifu2x_ncnn_vulkan
                 elif self.waifu2x_driver == 'waifu2x_ncnn_vulkan':
                     w2 = Waifu2xNcnnVulkan(copy.deepcopy(self.waifu2x_settings))
+                    thread = threading.Thread(target=w2.upscale,
+                                              args=(thread_info[0],
+                                                    self.upscaled_frames,
+                                                    self.scale_ratio,
+                                                    self.upscaler_exceptions))
+
+                # if the driver being used is anime4k
+                elif self.waifu2x_driver == 'anime4k':
+                    w2 = Anime4k(copy.deepcopy(self.waifu2x_settings))
                     thread = threading.Thread(target=w2.upscale,
                                               args=(thread_info[0],
                                                     self.upscaled_frames,

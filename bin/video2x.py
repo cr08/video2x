@@ -13,7 +13,7 @@ __      __  _       _                  ___   __   __
 Name: Video2X Controller
 Author: K4YT3X
 Date Created: Feb 24, 2018
-Last Modified: July 27, 2019
+Last Modified: August 29, 2019
 
 Dev: BrianPetkovsek
 Dev: SAT3LL
@@ -44,13 +44,13 @@ smooth and edges sharp.
 
 # local imports
 from exceptions import *
+from upscaler import AVAILABLE_DRIVERS
 from upscaler import Upscaler
 
 # built-in imports
 import argparse
-import glob
+import contextlib
 import json
-import os
 import pathlib
 import re
 import shutil
@@ -64,7 +64,22 @@ from avalon_framework import Avalon
 import GPUtil
 import psutil
 
-VERSION = '2.9.0'
+VERSION = '2.10.0'
+
+LEGAL_INFO = f'''Video2X Version: {VERSION}
+Author: K4YT3X
+License: GNU GPL v3
+Github Page: https://github.com/k4yt3x/video2x
+Contact: k4yt3x@k4yt3x.com'''
+
+LOGO = r'''
+    __      __  _       _                  ___   __   __
+    \ \    / / (_)     | |                |__ \  \ \ / /
+     \ \  / /   _    __| |   ___    ___      ) |  \ V /
+      \ \/ /   | |  / _` |  / _ \  / _ \    / /    > <
+       \  /    | | | (_| | |  __/ | (_) |  / /_   / . \
+        \/     |_|  \__,_|  \___|  \___/  |____| /_/ \_\
+'''
 
 # each thread might take up to 2.5 GB during initialization.
 # (system memory, not to be confused with GPU memory)
@@ -89,7 +104,7 @@ def process_arguments():
     # upscaler options
     upscaler_options = parser.add_argument_group('Upscaler Options')
     upscaler_options.add_argument('-m', '--method', help='upscaling method', action='store', default='gpu', choices=['cpu', 'gpu', 'cudnn'])
-    upscaler_options.add_argument('-d', '--driver', help='waifu2x driver', action='store', default='waifu2x_caffe', choices=['waifu2x_caffe', 'waifu2x_converter', 'waifu2x_ncnn_vulkan'])
+    upscaler_options.add_argument('-d', '--driver', help='upscaling driver', action='store', default='waifu2x_caffe', choices=AVAILABLE_DRIVERS)
     upscaler_options.add_argument('-y', '--model_dir', type=pathlib.Path, help='directory containing model JSON files', action='store')
     upscaler_options.add_argument('-t', '--threads', help='number of threads to use for upscaling', action='store', type=int, default=1)
     upscaler_options.add_argument('-c', '--config', type=pathlib.Path, help='video2x config file location', action='store', default=pathlib.Path(sys.argv[0]).parent.absolute() / 'video2x.json')
@@ -111,18 +126,9 @@ def process_arguments():
 
 def print_logo():
     """print video2x logo"""
-    logo = r'''
-    __      __  _       _                  ___   __   __
-    \ \    / / (_)     | |                |__ \  \ \ / /
-     \ \  / /   _    __| |   ___    ___      ) |  \ V /
-      \ \/ /   | |  / _` |  / _ \  / _ \    / /    > <
-       \  /    | | | (_| | |  __/ | (_) |  / /_   / . \
-        \/     |_|  \__,_|  \___|  \___/  |____| /_/ \_\
-    '''
-    print(logo)
-    print('\n               Video2X Video Enlarger')
-    spaces = ((44 - len(f'Version {VERSION}')) // 2) * ' '
-    print(f'{Avalon.FM.BD}\n{spaces}    Version {VERSION}\n{Avalon.FM.RST}')
+    print(LOGO)
+    print(f'\n{"Video2X Video Enlarger".rjust(40, " ")}')
+    print(f'\n{Avalon.FM.BD}{f"Version {VERSION}".rjust(36, " ")}{Avalon.FM.RST}\n')
 
 
 def check_memory():
@@ -145,12 +151,10 @@ def check_memory():
             Avalon.warning('Nvidia-smi not available, skipping available memory check')
             Avalon.warning('If you experience error \"cudaSuccess out of memory\", try reducing number of threads you\'re using')
         else:
-            try:
+            with contextlib.suppress(ValueError):
                 # "0" is GPU ID. Both waifu2x drivers use the first GPU available, therefore only 0 makes sense
                 gpu_memory_available = (GPUtil.getGPUs()[0].memoryTotal - GPUtil.getGPUs()[0].memoryUsed) / 1024
                 memory_status.append(('GPU', gpu_memory_available))
-            except ValueError:
-                pass
 
     # go though each checkable memory type and check availability
     for memory_type, memory_available in memory_status:
@@ -218,6 +222,10 @@ def absolutify_paths(config):
     if not re.match('^[a-z]:', config['waifu2x_ncnn_vulkan']['waifu2x_ncnn_vulkan_path'], re.IGNORECASE):
         config['waifu2x_ncnn_vulkan']['waifu2x_ncnn_vulkan_path'] = current_directory / config['waifu2x_ncnn_vulkan']['waifu2x_ncnn_vulkan_path']
 
+    # check anime4k path
+    if not re.match('^[a-z]:', config['anime4k']['anime4k_path'], re.IGNORECASE):
+        config['anime4k']['anime4k_path'] = current_directory / config['anime4k']['anime4k_path']
+
     # check ffmpeg path
     if not re.match('^[a-z]:', config['ffmpeg']['ffmpeg_path'], re.IGNORECASE):
         config['ffmpeg']['ffmpeg_path'] = current_directory / config['ffmpeg']['ffmpeg_path']
@@ -245,11 +253,7 @@ args = process_arguments()
 
 # display version and lawful informaition
 if args.version:
-    print(f'Video2X Version: {VERSION}')
-    print('Author: K4YT3X')
-    print('License: GNU GPL v3')
-    print('Github Page: https://github.com/k4yt3x/video2x')
-    print('Contact: k4yt3x@k4yt3x.com')
+    print(LEGAL_INFO)
     exit(0)
 
 # arguments sanity check
@@ -259,9 +263,9 @@ if not args.input:
 if not args.output:
     Avalon.error('You must specify output video file/directory path')
     raise ArgumentError('output video path not specified')
-if (args.driver == 'waifu2x_converter' or args.driver == 'waifu2x_ncnn_vulkan') and args.width and args.height:
-    Avalon.error('Waifu2x Converter CPP/NCNN accepts only scaling ratio')
-    raise ArgumentError('waifu2x-converter supports only scaling ratio')
+if (args.driver in ['waifu2x_converter', 'waifu2x_ncnn_vulkan', 'anime4k']) and args.width and args.height:
+    Avalon.error('Selected driver accepts only scaling ratio')
+    raise ArgumentError('selected driver supports only scaling ratio')
 if args.driver == 'waifu2x_ncnn_vulkan' and (args.ratio > 2 or not args.ratio.is_integer()):
     Avalon.error('Scaling ratio must be 1 or 2 for waifu2x_ncnn_vulkan')
     raise ArgumentError('scaling ratio must be 1 or 2 for waifu2x_ncnn_vulkan')
@@ -272,8 +276,25 @@ if (args.width and not args.height) or (not args.width and args.height):
     Avalon.error('You must specify both width and height')
     raise ArgumentError('only one of width or height is specified')
 
-# check available memory
-check_memory()
+# check available memory if driver is waifu2x-based
+if args.driver in ['waifu2x_caffe', 'waifu2x_converter', 'waifu2x_ncnn_vulkan']:
+    check_memory()
+
+# anime4k runs significantly faster with more threads
+if args.driver == 'anime4k' and args.threads <= 1:
+    Avalon.warning('Anime4K runs significantly faster with more threads')
+    if Avalon.ask('Use more threads of Anime4K?', True):
+        while True:
+            try:
+                threads = Avalon.gets('Amount of threads to use [5]: ')
+                args.threads = int(threads)
+                break
+            except ValueError:
+                if threads == '':
+                    args.threads = 5
+                    break
+                else:
+                    Avalon.error(f'{threads} is not a valid integer')
 
 # read configurations from JSON
 config = read_config(args.config)
@@ -298,6 +319,12 @@ elif args.driver == 'waifu2x_ncnn_vulkan':
         Avalon.error('Specified waifu2x_ncnn_vulkan directory doesn\'t exist')
         Avalon.error('Please check the configuration file settings')
         raise FileNotFoundError(waifu2x_settings['waifu2x_ncnn_vulkan_path'])
+elif args.driver == 'anime4k':
+    waifu2x_settings = config['anime4k']
+    if not pathlib.Path(waifu2x_settings['anime4k_path']).is_file():
+        Avalon.error('Specified anime4k directory doesn\'t exist')
+        Avalon.error('Please check the configuration file settings')
+        raise FileNotFoundError(waifu2x_settings['anime4k_path'])
 
 # read FFmpeg configuration
 ffmpeg_settings = config['ffmpeg']
@@ -353,7 +380,7 @@ try:
             Avalon.error('Input and output path type mismatch')
             Avalon.error('Input is single file but output is directory')
             raise Exception('input output path type mismatch')
-        if not re.search('.*\..*$', str(args.output)):
+        if not re.search(r'.*\..*$', str(args.output)):
             Avalon.error('No suffix found in output file path')
             Avalon.error('Suffix must be specified for FFmpeg')
             raise Exception('No suffix specified')
@@ -380,9 +407,13 @@ try:
     elif args.input.is_dir():
         # upscale videos in a directory
         Avalon.info(f'Upscaling videos in directory: {args.input}')
+
+        # make output directory if it doesn't exist
+        args.output.mkdir(parents=True, exist_ok=True)
+
         for input_video in [f for f in args.input.iterdir() if f.is_file()]:
-            output_video = args.output / input_video
-            upscaler = Upscaler(input_video=args.input / input_video, output_video=output_video, method=args.method, waifu2x_settings=waifu2x_settings, ffmpeg_settings=ffmpeg_settings)
+            output_video = args.output / input_video.name
+            upscaler = Upscaler(input_video=input_video, output_video=output_video, method=args.method, waifu2x_settings=waifu2x_settings, ffmpeg_settings=ffmpeg_settings)
 
             # set optional options
             upscaler.waifu2x_driver = args.driver
@@ -409,8 +440,6 @@ except Exception:
     traceback.print_exc()
 finally:
     # remove Video2X cache directory
-    try:
+    with contextlib.suppress(FileNotFoundError):
         if not preserve_frames:
             shutil.rmtree(video2x_cache_directory)
-    except FileNotFoundError:
-        pass
